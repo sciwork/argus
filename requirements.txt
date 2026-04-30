@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+apscheduler
+httpx
+beautifulsoup4
+authlib
+itsdangerous
+jinja2

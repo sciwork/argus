@@ -1,0 +1,101 @@
+{% extends "_base.html" %}
+{% block title %}Events — Argus Dashboard{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h1 style="margin:0;">Events</h1>
+  <button id="trigger-btn" type="button"
+          style="padding:8px 14px; background:#1d65a6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px;">
+    Run report now
+  </button>
+</div>
+<div id="trigger-status" style="margin-bottom:16px; font-size:13px;"></div>
+
+<style>
+  .delete-btn {
+    padding: 4px 10px;
+    background: #fff;
+    border: 1px solid #E24B4A;
+    color: #E24B4A;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .delete-btn:hover { background: #E24B4A; color: #fff; }
+</style>
+
+{% if events %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Channel</th>
+      <th>Start</th>
+      <th>Capacity</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ev in events %}
+    <tr>
+      <td><a class="event-link" href="/dashboard/events/{{ ev.event_slug }}">{{ ev.event_name }}</a></td>
+      <td><span class="channel-badge">{{ ev.channel }}</span></td>
+      <td>{{ ev.start_at or "—" }}</td>
+      <td>{{ ev.capacity if ev.capacity is not none else "—" }}</td>
+      <td style="text-align: right;">
+        <button class="delete-btn" type="button"
+                data-slug="{{ ev.event_slug }}"
+                data-name="{{ ev.event_name }}">
+          Delete
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No events yet.</div>
+{% endif %}
+
+<script>
+async function triggerReport() {
+  const btn = document.getElementById('trigger-btn');
+  const status = document.getElementById('trigger-status');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  status.textContent = '';
+  status.style.color = '';
+  try {
+    const resp = await fetch('/dashboard/api/report/trigger', { method: 'POST' });
+    if (resp.ok) {
+      status.style.color = '#1D9E75';
+      status.textContent = '✓ Report dispatched. Check Discord.';
+    } else {
+      status.style.color = '#E24B4A';
+      status.textContent = `✗ Failed (${resp.status}). See server logs.`;
+    }
+  } catch (e) {
+    status.style.color = '#E24B4A';
+    status.textContent = `✗ ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run report now';
+  }
+}
+
+async function deleteEvent(slug, name) {
+  if (!confirm(`Delete event "${name}"?\n\nThis will permanently remove the event and all of its tickets.\nThis cannot be undone.`)) return;
+  const resp = await fetch(`/dashboard/api/events/${encodeURIComponent(slug)}`, { method: 'DELETE' });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    alert(`Failed to delete (${resp.status}). See server logs.`);
+  }
+}
+
+// Attach handlers via event listeners (more robust than inline onclick).
+document.getElementById('trigger-btn').addEventListener('click', triggerReport);
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', () => deleteEvent(btn.dataset.slug, btn.dataset.name));
+});
+</script>
+{% endblock %}

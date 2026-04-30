@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+*.egg-info/
+dist/
+.env
+*.db
+.hatch/
+.ruff_cache/
+.pytest_cache/
+
+# AI assistant configs (personal, not shared)
+.claude/
+CLAUDE.md
+AGENTS.md

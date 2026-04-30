@@ -1,0 +1,166 @@
+{% extends "_base.html" %}
+{% block title %}Webhook Logs — Argus Dashboard{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h1 style="margin:0;">Webhook Logs <span style="color:#888; font-size:14px; font-weight:400;">({{ total }} total)</span></h1>
+  <button id="clear-all-btn" type="button"
+          style="padding:8px 14px; background:#fff; border:1px solid #E24B4A; color:#E24B4A; border-radius:6px; cursor:pointer; font-size:13px;">
+    Clear all logs
+  </button>
+</div>
+<div id="status" style="margin-bottom:12px; font-size:13px;"></div>
+
+<style>
+  .log-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .log-table th { background: #f8f8f8; font-weight: 500; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  .log-table td { padding: 10px 14px; border-bottom: 1px solid #f5f5f5; font-size: 13px; vertical-align: top; }
+  .log-row { cursor: pointer; }
+  .log-row:hover { background: #fafafa; }
+  .detail-row td { padding: 0; background: #fafafa; }
+  .detail-content { padding: 12px 14px; }
+  .detail-content pre { margin: 4px 0 12px; padding: 10px; background: #fff; border: 1px solid #eee; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.4; }
+  .detail-content h4 { margin: 0 0 4px; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+  .row-delete-btn { padding: 3px 9px; background: #fff; border: 1px solid #E24B4A; color: #E24B4A; border-radius: 4px; cursor: pointer; font-size: 11px; }
+  .row-delete-btn:hover { background: #E24B4A; color: #fff; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .body-preview { color: #555; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { text-align: center; color: #888; padding: 48px; background: #fff; border-radius: 8px; }
+</style>
+
+<div id="logs-container">
+  <div class="empty">Loading…</div>
+</div>
+
+<script>
+const statusEl = document.getElementById('status');
+
+function setStatus(msg, color) {
+  statusEl.style.color = color || '';
+  statusEl.textContent = msg || '';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function prettify(jsonStr) {
+  try {
+    return JSON.stringify(JSON.parse(jsonStr), null, 2);
+  } catch {
+    return jsonStr || '';
+  }
+}
+
+function bodyPreview(jsonStr) {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    const notifs = parsed.notifications || [];
+    if (notifs.length) {
+      const types = notifs.map(n => n.type).filter(Boolean).join(', ');
+      const slugs = notifs.map(n => n.event && n.event.slug).filter(Boolean).join(', ');
+      return `${types}${slugs ? ' · ' + slugs : ''}`;
+    }
+    return JSON.stringify(parsed).slice(0, 100);
+  } catch {
+    return (jsonStr || '').slice(0, 100);
+  }
+}
+
+async function loadLogs() {
+  const resp = await fetch('/dashboard/api/webhook-logs?limit=200');
+  if (!resp.ok) {
+    document.getElementById('logs-container').innerHTML =
+      `<div class="empty">Failed to load (${resp.status})</div>`;
+    return;
+  }
+  const data = await resp.json();
+  renderLogs(data);
+}
+
+function renderLogs(data) {
+  const container = document.getElementById('logs-container');
+  if (!data.items.length) {
+    container.innerHTML = '<div class="empty">No webhook logs yet.</div>';
+    return;
+  }
+  const rows = data.items.map(item => `
+    <tr class="log-row" data-id="${item.id}">
+      <td class="mono">${item.id}</td>
+      <td class="mono">${escapeHtml(item.created_at)}</td>
+      <td>${escapeHtml(item.method)}</td>
+      <td>${item.channel ? `<span class="channel-badge">${escapeHtml(item.channel)}</span>` : '<span style="color:#aaa;">—</span>'}</td>
+      <td class="body-preview mono">${escapeHtml(bodyPreview(item.body))}</td>
+      <td style="text-align:right;">
+        <button class="row-delete-btn" data-id="${item.id}">Delete</button>
+      </td>
+    </tr>
+    <tr class="detail-row" id="detail-${item.id}" style="display:none;">
+      <td colspan="6">
+        <div class="detail-content">
+          <h4>Headers</h4><pre>${escapeHtml(prettify(item.headers))}</pre>
+          <h4>Body</h4><pre>${escapeHtml(prettify(item.body))}</pre>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  const totalShown = data.items.length;
+  const more = data.total > totalShown
+    ? `<div style="text-align:center; color:#888; font-size:12px; margin-top:12px;">Showing ${totalShown} of ${data.total}. Older entries truncated.</div>`
+    : '';
+  container.innerHTML = `
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>Time (UTC)</th><th>Method</th><th>Channel</th><th>Body summary</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${more}
+  `;
+
+  // Wire row click → toggle detail row
+  container.querySelectorAll('.log-row').forEach(row => {
+    row.addEventListener('click', (ev) => {
+      // Don't toggle when clicking the delete button
+      if (ev.target.classList.contains('row-delete-btn')) return;
+      const id = row.dataset.id;
+      const detail = document.getElementById(`detail-${id}`);
+      detail.style.display = detail.style.display === 'none' ? 'table-row' : 'none';
+    });
+  });
+
+  // Wire per-row delete
+  container.querySelectorAll('.row-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const id = btn.dataset.id;
+      if (!confirm(`Delete webhook log #${id}?`)) return;
+      const resp = await fetch(`/dashboard/api/webhook-logs/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        setStatus(`✓ Deleted log #${id}`, '#1D9E75');
+        loadLogs();
+      } else {
+        setStatus(`✗ Failed to delete (${resp.status})`, '#E24B4A');
+      }
+    });
+  });
+}
+
+document.getElementById('clear-all-btn').addEventListener('click', async () => {
+  if (!confirm(`Clear ALL {{ total }} webhook logs?\n\nThis cannot be undone.`)) return;
+  const resp = await fetch('/dashboard/api/webhook-logs', { method: 'DELETE' });
+  if (resp.ok) {
+    const data = await resp.json();
+    setStatus(`✓ Cleared ${data.deleted_count} log${data.deleted_count === 1 ? '' : 's'}`, '#1D9E75');
+    loadLogs();
+  } else {
+    setStatus(`✗ Failed (${resp.status})`, '#E24B4A');
+  }
+});
+
+loadLogs();
+</script>
+{% endblock %}

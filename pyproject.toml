@@ -1,0 +1,88 @@
+[project]
+name = "argus"
+dynamic = ["version"]
+description = "KKTIX webhook receiver with daily Discord reports"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "apscheduler",
+  "httpx",
+  "beautifulsoup4",
+  "authlib",
+  "itsdangerous",
+  "jinja2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/argus/__about__.py"
+
+[project.scripts]
+argus = "argus.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/argus"]
+
+[tool.hatch.envs.default]
+dependencies = [
+  "ruff",
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+  "beautifulsoup4",
+  "authlib",
+  "itsdangerous",
+  "jinja2",
+]
+
+[tool.hatch.envs.default.scripts]
+serve = "argus"
+lint = "ruff check src tests"
+fmt = "ruff format src tests"
+test = "pytest tests"
+
+[tool.ruff]
+output-format = "grouped"
+show-fixes = true
+
+[tool.ruff.lint]
+select = [
+  "I",   # isort
+  "N",   # pep8-naming
+  "E",   # pycodestyle-error
+  "W",   # pycodestyle-warning
+  "F",   # pyflakes
+  "UP",  # pyupgrade
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+from-first = true
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    # Third-party deprecation: authlib's transitional warning about its own
+    # jose submodule. Author guarantees compatibility until 2.0.0; nothing for
+    # us to do until they remove it.
+    "ignore::authlib.deprecate.AuthlibDeprecationWarning",
+]
