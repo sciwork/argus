@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Argus Dashboard{% endblock %}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1024px; margin: 0 auto; padding: 24px; color: #222; background: #fafafa; }
+    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid #e6e6e6; margin-bottom: 24px; }
+    header .left { font-weight: 600; font-size: 18px; }
+    header .left a { color: inherit; text-decoration: none; }
+    header .right { font-size: 13px; color: #666; }
+    header .right a { color: #1d65a6; text-decoration: none; }
+    header .right a:hover { text-decoration: underline; }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    .meta { color: #555; font-size: 13px; margin-bottom: 24px; }
+    .meta span { margin-right: 20px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+    tr:last-child td { border-bottom: none; }
+    th { background: #f8f8f8; font-weight: 500; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+    a.event-link { color: #1d65a6; text-decoration: none; font-weight: 500; }
+    a.event-link:hover { text-decoration: underline; }
+    .chart-container { position: relative; height: 480px; padding: 16px; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .empty { text-align: center; color: #888; padding: 64px; background: #fff; border-radius: 8px; }
+    .channel-badge { display: inline-block; padding: 2px 10px; background: #eef2f7; color: #3a5a7a; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .back { display: inline-block; margin-bottom: 12px; color: #888; font-size: 13px; text-decoration: none; }
+    .back:hover { color: #555; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <a href="/dashboard">📊 Argus Dashboard</a>
+      <span style="margin-left: 20px; font-weight: 400; font-size: 14px;">
+        <a href="/dashboard" style="color: #888; margin-right: 12px;">Events</a>
+        <a href="/dashboard/webhook-logs" style="color: #888;">Webhook Logs</a>
+      </span>
+    </div>
+    <div class="right">{{ user_email }} · <a href="/dashboard/logout">Logout</a></div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

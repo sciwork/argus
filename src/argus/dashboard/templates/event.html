@@ -1,0 +1,130 @@
+{% extends "_base.html" %}
+{% block title %}{{ event_name }} — Argus Dashboard{% endblock %}
+{% block content %}
+<a class="back" href="/dashboard">← All events</a>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+  <h1 style="margin:0;">🎟️ {{ event_name }}</h1>
+  <button id="delete-event-btn" type="button"
+          data-slug="{{ slug }}"
+          data-name="{{ event_name }}"
+          style="padding:6px 12px; background:#fff; border:1px solid #E24B4A; color:#E24B4A; border-radius:4px; cursor:pointer; font-size:13px; flex-shrink:0;">
+    Delete event
+  </button>
+</div>
+<div class="meta" style="margin-top: 12px;">
+  <span><strong>Channel:</strong> <span class="channel-badge">{{ channel }}</span></span>
+  {% if start_at %}<span><strong>Start:</strong> {{ start_at }}</span>{% endif %}
+  {% if capacity is not none %}<span><strong>Capacity:</strong> {{ capacity }}</span>{% endif %}
+</div>
+
+<script>
+document.getElementById('delete-event-btn').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget;
+  const slug = btn.dataset.slug;
+  const name = btn.dataset.name;
+  if (!confirm(`Delete event "${name}"?\n\nThis will permanently remove the event and all of its tickets.\nThis cannot be undone.`)) return;
+  const resp = await fetch(`/dashboard/api/events/${encodeURIComponent(slug)}`, { method: 'DELETE' });
+  if (resp.ok) {
+    location.href = '/dashboard';
+  } else {
+    alert(`Failed to delete (${resp.status}). See server logs.`);
+  }
+});
+</script>
+<div class="chart-container">
+  <canvas id="chart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script>
+(async () => {
+  const slug = {{ slug | tojson }};
+  const resp = await fetch(`/dashboard/api/events/${slug}/timeseries`);
+  if (!resp.ok) {
+    document.querySelector('.chart-container').innerHTML =
+      `<div style="padding:40px;text-align:center;color:#888;">Failed to load chart data (${resp.status}).</div>`;
+    return;
+  }
+  const data = await resp.json();
+
+  if (!data.labels || data.labels.length === 0) {
+    document.querySelector('.chart-container').innerHTML =
+      '<div style="padding:40px;text-align:center;color:#888;">No registration data yet.</div>';
+    return;
+  }
+
+  const event = data.event;
+  const palette = ['#1D9E75', '#E24B4A', '#5B68DA', '#E48634', '#A85ACE', '#888780'];
+
+  // Total: thicker, distinct color; ticket types use palette
+  let pIdx = 0;
+  const datasets = data.datasets.map(d => {
+    const isTotal = d.name === 'Total';
+    return {
+      label: d.name,
+      data: d.data,
+      borderColor: isTotal ? '#1D65A6' : palette[(pIdx++) % palette.length],
+      backgroundColor: 'transparent',
+      borderWidth: isTotal ? 3 : 2,
+      tension: 0.15,
+      pointRadius: 2,
+      pointHoverRadius: 4,
+    };
+  });
+
+  // Annotations: capacity (horizontal) + event start (vertical at last label)
+  const annotations = {};
+  if (event.capacity != null) {
+    annotations.capacity = {
+      type: 'line',
+      yMin: event.capacity,
+      yMax: event.capacity,
+      borderColor: '#999',
+      borderWidth: 1,
+      borderDash: [4, 4],
+      label: {
+        content: `Capacity ${event.capacity}`,
+        display: true, position: 'end',
+        backgroundColor: 'rgba(255,255,255,0.85)', color: '#666',
+        font: { size: 11 }, padding: 4,
+      },
+    };
+  }
+  if (data.start_marker_label) {
+    annotations.start = {
+      type: 'line',
+      xMin: data.start_marker_label, xMax: data.start_marker_label,
+      borderColor: '#aaa',
+      borderWidth: 1,
+      borderDash: [4, 4],
+      label: {
+        content: 'Event start',
+        display: true, position: 'start',
+        backgroundColor: 'rgba(255,255,255,0.85)', color: '#666',
+        font: { size: 11 }, padding: 4,
+      },
+    };
+  }
+
+  new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: { labels: data.labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+        annotation: { annotations },
+        tooltip: { callbacks: { title: items => items[0].label } },
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#f0f0f0' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

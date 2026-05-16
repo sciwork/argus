@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.package-data]
+"argus.dashboard" = ["templates/*.html"]
+
+[project]
+name = "argus"
+version = "0.1.0"
+description = "KKTIX webhook receiver with daily Discord reports"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "apscheduler",
+  "httpx",
+  "beautifulsoup4",
+  "authlib",
+  "itsdangerous",
+  "jinja2",
+]
+
+[dependency-groups]
+dev = [
+  "ruff",
+  "pytest",
+  "pytest-asyncio",
+]
+
+[tool.ruff]
+output-format = "grouped"
+show-fixes = true
+
+[tool.ruff.lint]
+select = [
+  "I",   # isort
+  "N",   # pep8-naming
+  "E",   # pycodestyle-error
+  "W",   # pycodestyle-warning
+  "F",   # pyflakes
+  "UP",  # pyupgrade
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+from-first = true
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    # Third-party deprecation: authlib's transitional warning about its own
+    # jose submodule. Author guarantees compatibility until 2.0.0; nothing for
+    # us to do until they remove it.
+    "ignore::authlib.deprecate.AuthlibDeprecationWarning",
+]
