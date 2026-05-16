@@ -8,13 +8,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from argus import config
-
-
-try:
-    from argus.__about__ import __version__
-except ImportError:  # pragma: no cover - defensive
-    __version__ = "unknown"
+from argus import __version__, config
 
 
 logger = logging.getLogger(__name__)
