@@ -1,6 +1,6 @@
 services:
   argus:
-    build: .
+    image: ghcr.io/sciwork/argus
     container_name: argus
     restart: unless-stopped
     ports:
