@@ -4,7 +4,6 @@ import os
 
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
-import uvicorn
 
 from argus import config
 from argus.dashboard.router import router as dashboard_router
@@ -24,6 +23,9 @@ def _configure_logging() -> None:
         level=level,
         format="%(levelname)s:%(name)s:%(message)s",
     )
+
+
+_configure_logging()
 
 
 @asynccontextmanager
@@ -58,15 +60,3 @@ app.add_middleware(
 app.include_router(kktix_router)
 app.include_router(dashboard_router)
 app.include_router(health_router)
-
-
-def main():
-    _configure_logging()
-    # Railway and most container platforms inject $PORT and expect the app to bind it.
-    uvicorn.run(
-        "argus.main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "8000")),
-        log_config=None,
-        reload=False,
-    )

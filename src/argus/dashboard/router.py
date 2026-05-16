@@ -122,9 +122,7 @@ async def api_events(_email: str = Depends(auth.require_login)):
 
 
 @router.get("/dashboard/api/events/{slug}/timeseries")
-async def api_event_timeseries(
-    slug: str, _email: str = Depends(auth.require_login)
-):
+async def api_event_timeseries(slug: str, _email: str = Depends(auth.require_login)):
     result = queries.get_timeseries(slug)
     if result is None:
         raise HTTPException(status_code=404, detail="event_not_found")
@@ -164,9 +162,7 @@ async def api_webhook_logs(
 
 
 @router.delete("/dashboard/api/webhook-logs/{log_id}")
-async def api_delete_webhook_log(
-    log_id: int, email: str = Depends(auth.require_login)
-):
+async def api_delete_webhook_log(log_id: int, email: str = Depends(auth.require_login)):
     logger.info("Delete webhook log id=%s by %s", log_id, email)
     if not queries.delete_webhook_log(log_id):
         raise HTTPException(status_code=404, detail="webhook_log_not_found")

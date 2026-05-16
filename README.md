@@ -5,7 +5,9 @@ KKTIX webhook receiver with daily Discord reports and a Google-OAuth-protected d
 ## Installation
 
 ```bash
-pip install git+https://github.com/yourname/argus.git
+git clone https://github.com/sciwork/argus
+cd argus
+uv sync
 ```
 
 ## Environment Variables
@@ -37,7 +39,7 @@ pip install git+https://github.com/yourname/argus.git
 ## Usage
 
 ```bash
-argus
+uv run uvicorn argus.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## KKTIX Webhook Setup
@@ -79,7 +81,7 @@ A Google-OAuth-protected web UI for viewing per-event registration time series.
 
 ```bash
 set -a && source .env && set +a
-hatch run serve
+uv run uvicorn argus.main:app --host 0.0.0.0 --port 8000
 # open http://localhost:8000/dashboard
 ```
 
@@ -89,10 +91,10 @@ You will be redirected to Google to sign in. Only emails in `ALLOWED_EMAILS` are
 
 When deploying (e.g. to Railway):
 
-- **Railway builds the Dockerfile** using `python:3.12-slim-bookworm`, installs `sqlite3` for SSH database inspection, installs the package with `pip install .`, and starts the `argus` console command. `argus` reads Railway's injected `PORT` environment variable at runtime.
+- **Railway builds the Dockerfile** using `python:3.12-slim-bookworm`, installs `sqlite3` for SSH database inspection, installs the package with `pip install .`, and starts uvicorn via `railway.json` `startCommand`. Railway injects `$PORT` and the start command binds to it.
 - **Mount a persistent volume** at `/data` (or wherever) and set `DB_PATH=/data/argus.db`. SQLite written to the container's local filesystem will be wiped on every redeploy.
 - **`SESSION_SECRET` is required** — the app refuses to boot without it. Generate with `python -c "import secrets; print(secrets.token_hex(32))"`.
-- **`PORT` is read from env** automatically (Railway and most container platforms inject it). No code change needed.
+- **Port:** the Dockerfile's `CMD` binds to a fixed port 8000. Railway overrides this via `railway.json`'s `startCommand`, which substitutes its injected `$PORT`. To change the port in non-Railway environments, override the container command (e.g. `docker run … argus-image uvicorn argus.main:app --host 0.0.0.0 --port 9000`).
 - **`ARGUS_HTTPS_ONLY=1`** — set this once the deploy URL is HTTPS-only, to add the `Secure` flag to session cookies.
 - **Google OAuth redirect URI** must be added in Cloud Console: `https://<your-domain>/dashboard/oauth/callback`.
 
@@ -103,12 +105,14 @@ See [SPEC.md → Deployment](SPEC.md#deployment-railway) for the full Railway wa
 Copy `.env.example` to `.env` and fill in the values, then source it before running any command:
 
 ```bash
+uv sync --group dev               # create .venv and install all dependencies
 set -a && source .env && set +a
-hatch run serve   # start server
-hatch run test    # run automated tests
-hatch run lint    # lint
-hatch run fmt     # format
+
+uv run uvicorn argus.main:app --host 0.0.0.0 --port 8000  # start server
+uv run pytest tests/              # run automated tests
+uv run ruff check src tests       # lint
+uv run ruff format src tests      # format
 
 # Visual inspection of Discord report (sends a real webhook):
-ARGUS_MANUAL_TEST=1 hatch run pytest tests/test_discord_format_manual.py -v -s
+ARGUS_MANUAL_TEST=1 uv run pytest tests/test_discord_format_manual.py -v -s
 ```

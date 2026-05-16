@@ -2,10 +2,12 @@ __pycache__/
 *.py[cod]
 .DS_Store
 *.egg-info/
+build/
 dist/
 .env
 *.db
-.hatch/
+.venv/
+uv.lock
 .ruff_cache/
 .pytest_cache/
 

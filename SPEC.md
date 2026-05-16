@@ -39,7 +39,7 @@ Argus uses a **vertical slice** layout: each feature owns its full stack (HTTP r
 | Scheduler | APScheduler |
 | HTTP client | httpx |
 | HTML parsing | beautifulsoup4 |
-| Package manager | Hatch |
+| Package manager | uv (setuptools build backend) |
 | Deploy target | Railway |
 
 ---
@@ -521,16 +521,18 @@ HTTP 200 when healthy, 503 when unhealthy.
 ## Development
 
 ```bash
+uv sync --group dev               # create .venv and install all dependencies
+
 # Source env vars
 set -a && source .env && set +a
 
-hatch run serve   # start server
-hatch run test    # run automated tests
-hatch run lint    # ruff check
-hatch run fmt     # ruff format
+uv run uvicorn argus.main:app --host 0.0.0.0 --port 8000  # start server
+uv run pytest tests/              # run automated tests
+uv run ruff check src tests       # ruff check
+uv run ruff format src tests      # ruff format
 
 # Visual inspection of Discord report (opt-in, sends a real webhook)
-ARGUS_MANUAL_TEST=1 hatch run pytest tests/test_discord_format_manual.py -v -s
+ARGUS_MANUAL_TEST=1 uv run pytest tests/test_discord_format_manual.py -v -s
 ```
 
 ---
@@ -541,12 +543,12 @@ ARGUS_MANUAL_TEST=1 hatch run pytest tests/test_discord_format_manual.py -v -s
 2. Create new Railway project → Deploy from GitHub repo
 3. Add a Volume, mount at `/data`, set `DB_PATH=/data/argus.db`
 4. Set all required environment variables in Railway dashboard
-5. Railway builds `Dockerfile`, installs the package and SQLite CLI, then starts the installed `argus` console command
+5. Railway builds `Dockerfile`, installs the package and SQLite CLI, then runs uvicorn against `argus.main:app`. The exact start command (with `$PORT` injection) comes from `railway.json`'s `startCommand`, which overrides the Dockerfile's `CMD`.
 
 ```json
 {
   "deploy": {
-    "startCommand": "argus"
+    "startCommand": "uvicorn argus.main:app --host 0.0.0.0 --port $PORT"
   }
 }
 ```

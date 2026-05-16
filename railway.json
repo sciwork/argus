@@ -4,6 +4,6 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "startCommand": "argus"
+    "startCommand": "uvicorn argus.main:app --host 0.0.0.0 --port $PORT"
   }
 }

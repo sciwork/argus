@@ -361,8 +361,7 @@ def test_api_delete_event_removes_data(monkeypatch):
 
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO events (event_slug, event_name, channel)"
-            " VALUES (?, ?, ?)",
+            "INSERT INTO events (event_slug, event_name, channel) VALUES (?, ?, ?)",
             ("ev1", "Event One", "SPRINT"),
         )
         conn.execute(

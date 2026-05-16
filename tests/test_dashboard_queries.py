@@ -228,11 +228,7 @@ def test_timeseries_total_equals_sum_of_ticket_types():
     datasets = {d["name"]: d["data"] for d in result["datasets"]}
 
     for i in range(len(result["labels"])):
-        per_type_sum = sum(
-            datasets[name][i]
-            for name in datasets
-            if name != "Total"
-        )
+        per_type_sum = sum(datasets[name][i] for name in datasets if name != "Total")
         assert datasets["Total"][i] == per_type_sum
 
 
@@ -304,9 +300,12 @@ def test_delete_event_isolates_other_events():
 # ---------------------------------------------------------------------------
 
 
-def _insert_webhook_log(method: str = "POST", channel: str | None = "SPRINT",
-                       headers: str = '{"x-kktix-secret":"***"}',
-                       body: str = '{"batch_id":"x","notifications":[]}') -> int:
+def _insert_webhook_log(
+    method: str = "POST",
+    channel: str | None = "SPRINT",
+    headers: str = '{"x-kktix-secret":"***"}',
+    body: str = '{"batch_id":"x","notifications":[]}',
+) -> int:
     with get_conn() as conn:
         cur = conn.execute(
             """INSERT INTO webhook_logs (method, channel, headers, body)
