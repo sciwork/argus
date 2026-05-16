@@ -1,0 +1,16 @@
+services:
+  argus:
+    build: .
+    container_name: argus
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /data/argus.db
+    volumes:
+      - argus-data:/data
+
+volumes:
+  argus-data:
