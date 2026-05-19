@@ -119,8 +119,8 @@ def _send_report_for_channel(conn: sqlite3.Connection, channel: str) -> None:
 
     # 1. Fetch all events for this channel (with last_reported_at)
     event_rows = conn.execute(
-        "SELECT event_slug, event_name, last_reported_at FROM events WHERE channel = ?",
-        (channel,),
+        "SELECT event_slug, event_name, last_reported_at FROM events WHERE channel = ? AND (start_at IS NULL OR start_at > ?)",
+        (channel, utcnow_iso()),
     ).fetchall()
 
     # 2. now_count per (event_slug, ticket_name)
