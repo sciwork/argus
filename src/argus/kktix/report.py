@@ -7,7 +7,6 @@ from argus.channels import resolve_webhook_url
 from argus.database import get_conn
 from argus.timeutil import utcnow_iso
 
-
 logger = logging.getLogger(__name__)
 
 _COLOR_INCREASE = 0x1D9E75
@@ -65,9 +64,7 @@ def build_payload(
             color = (
                 _COLOR_INCREASE
                 if total_diff > 0
-                else _COLOR_DECREASE
-                if total_diff < 0
-                else _COLOR_NEUTRAL
+                else _COLOR_DECREASE if total_diff < 0 else _COLOR_NEUTRAL
             )
 
         embeds.append(
@@ -92,50 +89,74 @@ def build_payload(
         "embeds": embeds,
     }
 
-
 def send_report() -> None:
     # Only report on channels that have events whose start_at has not yet passed.
     # Events with start_at IS NULL (not yet enriched) are included as well.
     with get_conn() as conn:
         rows = conn.execute(
-            """SELECT DISTINCT channel FROM events
+            """SELECT DISTINCT channel, event_slug, event_name, last_reported_at FROM events
                WHERE channel IS NOT NULL
                  AND (start_at IS NULL OR start_at > ?)""",
             (utcnow_iso(),),
         ).fetchall()
-        channels = [r["channel"] for r in rows]
-        if not channels:
+
+        ## channel_event_map example: 
+        ## {
+        ##   "channel1": {
+        ##       "event_slug1": {
+        ##           "event_slug": "event_slug1",
+        ##           "event_name": "Event 1",
+        ##           "last_reported_at": "2024-06-01T00:00:00Z"
+        ##       }, 
+        ##       "event_slug2": {
+        ##           "event_slug": "event_slug2",
+        ##           "event_name": "Event 2",
+        ##           "last_reported_at": None
+        ##       }
+        ##   },
+        ##   "channel2": {"event_slug3": {...}},
+        ## }
+
+        channel_event_map: dict[str, dict[str, dict]] = {}
+        for r in rows:
+            ch = r["channel"]
+            slug = r["event_slug"]
+            if ch not in channel_event_map:
+                channel_event_map[ch] = {}
+            channel_event_map[ch][slug] = {
+                "event_slug": slug,
+                "event_name": r["event_name"],
+                "last_reported_at": r["last_reported_at"],
+            }
+
+        if not channel_event_map:
             logger.info("send_report: no active events found, skipping")
             return
-        for ch in channels:
+        for ch, events in channel_event_map.items():
             try:
-                _send_report_for_channel(conn, ch)
+                _send_report_for_channel(conn, ch, events)
             except Exception:
                 logger.exception("failed to send report for channel %s", ch)
 
 
-def _send_report_for_channel(conn: sqlite3.Connection, channel: str) -> None:
+def _send_report_for_channel(
+    conn: sqlite3.Connection, channel: str, event_map: dict[str, dict]
+) -> None:
     url = resolve_webhook_url(channel)
 
-    # 1. Fetch all events for this channel (with last_reported_at)
-    event_rows = conn.execute(
-        "SELECT event_slug, event_name, last_reported_at FROM events WHERE channel = ?",
-        (channel,),
-    ).fetchall()
-
-    # 2. now_count per (event_slug, ticket_name)
+    # 1. now_count per (event_slug, ticket_name)
     now_rows = conn.execute(
         """SELECT t.event_slug, e.event_name, t.ticket_name, COUNT(*) AS cnt
            FROM tickets t
            JOIN events e ON e.event_slug = t.event_slug
-           WHERE e.channel = ? AND t.order_state = 'activated'
+           WHERE e.channel = ? AND t.order_state = 'activated' AND (e.start_at IS NULL OR e.start_at > ?)
            GROUP BY t.event_slug, t.ticket_name""",
-        (channel,),
+        (channel, utcnow_iso()),
     ).fetchall()
 
-    # 3. prev_count: query once per event that has a last_reported_at
+    # 2. prev_count: query once per event that has a last_reported_at
     prev_counts: dict[tuple[str, str], int] = {}
-    for ev in event_rows:
+    for slug, ev in event_map.items():
         lra = ev["last_reported_at"]
         if lra is None:
             continue
@@ -146,11 +167,11 @@ def _send_report_for_channel(conn: sqlite3.Connection, channel: str) -> None:
                  AND paid_at IS NOT NULL AND paid_at <= ?
                  AND (cancelled_at IS NULL OR cancelled_at > ?)
                GROUP BY ticket_name""",
-            (ev["event_slug"], lra, lra),
+            (slug, lra, lra),
         ):
-            prev_counts[(ev["event_slug"], r["ticket_name"])] = r["cnt"]
+            prev_counts[(slug, r["ticket_name"])] = r["cnt"]
 
-    event_meta = [dict(r) for r in event_rows]
+    event_meta = [dict(r) for r in event_map.values()]
     rows = [dict(r) for r in now_rows]
     payload = build_payload(rows, event_meta, prev_counts)
 
