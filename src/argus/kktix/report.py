@@ -149,9 +149,9 @@ def _send_report_for_channel(
         """SELECT t.event_slug, e.event_name, t.ticket_name, COUNT(*) AS cnt
            FROM tickets t
            JOIN events e ON e.event_slug = t.event_slug
-           WHERE e.channel = ? AND t.order_state = 'activated'
+           WHERE e.channel = ? AND t.order_state = 'activated' AND (e.start_at IS NULL OR e.start_at > ?)
            GROUP BY t.event_slug, t.ticket_name""",
-        (channel,),
+        (channel, utcnow_iso()),
     ).fetchall()
 
     # 2. prev_count: query once per event that has a last_reported_at
