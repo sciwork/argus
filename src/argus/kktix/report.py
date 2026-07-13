@@ -92,12 +92,13 @@ def build_payload(
 def send_report() -> None:
     # Only report on channels that have events whose start_at has not yet passed.
     # Events with start_at IS NULL (not yet enriched) are included as well.
+    now = utcnow_iso()
     with get_conn() as conn:
         rows = conn.execute(
             """SELECT DISTINCT channel, event_slug, event_name, last_reported_at FROM events
                WHERE channel IS NOT NULL
                  AND (start_at IS NULL OR start_at > ?)""",
-            (utcnow_iso(),),
+            (now,),
         ).fetchall()
 
         ## channel_event_map example: 
@@ -134,24 +135,26 @@ def send_report() -> None:
             return
         for ch, events in channel_event_map.items():
             try:
-                _send_report_for_channel(conn, ch, events)
+                _send_report_for_channel(conn, ch, events, now)
             except Exception:
                 logger.exception("failed to send report for channel %s", ch)
 
 
 def _send_report_for_channel(
-    conn: sqlite3.Connection, channel: str, event_map: dict[str, dict]
+    conn: sqlite3.Connection, channel: str, event_map: dict[str, dict], now: str
 ) -> None:
     url = resolve_webhook_url(channel)
+    slugs = list(event_map.keys())
+    placeholders = ",".join("?" * len(slugs))
 
     # 1. now_count per (event_slug, ticket_name)
     now_rows = conn.execute(
-        """SELECT t.event_slug, e.event_name, t.ticket_name, COUNT(*) AS cnt
+        f"""SELECT t.event_slug, e.event_name, t.ticket_name, COUNT(*) AS cnt
            FROM tickets t
            JOIN events e ON e.event_slug = t.event_slug
-           WHERE e.channel = ? AND t.order_state = 'activated' AND (e.start_at IS NULL OR e.start_at > ?)
+           WHERE t.event_slug IN ({placeholders}) AND t.order_state = 'activated'
            GROUP BY t.event_slug, t.ticket_name""",
-        (channel, utcnow_iso()),
+        slugs,
     ).fetchall()
 
     # 2. prev_count: query once per event that has a last_reported_at
@@ -178,6 +181,6 @@ def _send_report_for_channel(
     ok = discord.post(url, **payload)
     if ok:
         conn.execute(
-            "UPDATE events SET last_reported_at = ? WHERE channel = ?",
-            (utcnow_iso(), channel),
+            f"UPDATE events SET last_reported_at = ? WHERE event_slug IN ({placeholders})",
+            [now, *slugs],
         )
