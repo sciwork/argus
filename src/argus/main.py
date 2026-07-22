@@ -3,6 +3,7 @@ import logging
 import os
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from argus import config
@@ -60,3 +61,8 @@ app.add_middleware(
 app.include_router(kktix_router)
 app.include_router(dashboard_router)
 app.include_router(health_router)
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    return RedirectResponse(url="/dashboard", status_code=302)
