@@ -27,6 +27,7 @@ dependencies = [
   "authlib<1.7",
   "itsdangerous",
   "jinja2",
+  "sqlalchemy",
 ]
 
 [dependency-groups]

@@ -1,25 +1,27 @@
 from dataclasses import dataclass
-from pathlib import Path
 import os
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
+    """Runtime settings loaded from environment variables."""
+
     report_hour: int
     report_minute: int
     report_timezone: str
-    db_path: Path
+    database_url: str
     healthcheck_db_timeout: float
     kktix_organization: str
     allowed_emails: tuple[str, ...]
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Build settings from the current environment."""
         return cls(
             report_hour=int(os.getenv("REPORT_HOUR", "9")),
             report_minute=int(os.getenv("REPORT_MINUTE", "0")),
             report_timezone=os.getenv("REPORT_TIMEZONE", "Asia/Taipei"),
-            db_path=Path(os.getenv("DB_PATH", "argus.db")),
+            database_url=os.getenv("DATABASE_URL", "sqlite:///argus.db"),
             healthcheck_db_timeout=float(os.getenv("HEALTHCHECK_DB_TIMEOUT", "1.0")),
             kktix_organization=os.getenv("KKTIX_ORGANIZATION", ""),
             allowed_emails=tuple(

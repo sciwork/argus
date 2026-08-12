@@ -12,7 +12,7 @@ from argus.channels import (
     normalize,
     resolve_webhook_url,
 )
-from argus.database import get_conn
+from argus.database import WebhookLog, get_conn
 from argus.kktix.handler import handle_notification
 from argus.kktix.scraper import enrich_event
 
@@ -75,6 +75,7 @@ async def receive_kktix_webhook(
     background_tasks: BackgroundTasks,
     x_kktix_secret: str | None = Header(default=None),
 ):
+    """Validate, log, and process a KKTIX webhook request."""
     body = await request.json()
     headers = _redact_headers(dict(request.headers))
 
@@ -85,14 +86,13 @@ async def receive_kktix_webhook(
         normalized = None  # still log request, with channel = NULL
 
     with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO webhook_logs (method, channel, headers, body) VALUES (?, ?, ?, ?)",
-            (
-                request.method,
-                normalized,
-                json.dumps(headers),
-                json.dumps(_redact_body_pii(body)),
-            ),
+        conn.add(
+            WebhookLog(
+                method=request.method,
+                channel=normalized,
+                headers=json.dumps(headers),
+                body=json.dumps(_redact_body_pii(body)),
+            )
         )
 
     if normalized is None:

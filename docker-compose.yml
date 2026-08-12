@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     environment:
-      DB_PATH: /data/argus.db
+      DATABASE_URL: sqlite:////data/argus.db
     volumes:
       - argus-data:/data
 

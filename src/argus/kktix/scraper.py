@@ -2,10 +2,11 @@ from dataclasses import dataclass
 import logging
 import re
 
+from sqlalchemy import func
 import httpx
 
 from argus import config
-from argus.database import get_conn
+from argus.database import Event, get_conn
 from argus.timeutil import to_utc
 
 
@@ -87,21 +88,21 @@ async def enrich_event(slug: str) -> None:
     Skips if start_at is already populated. Swallows all exceptions."""
     try:
         with get_conn() as conn:
-            row = conn.execute(
-                "SELECT start_at FROM events WHERE event_slug = ?", (slug,)
-            ).fetchone()
-        if row is None or row["start_at"] is not None:
+            event = conn.get(Event, slug)
+        if event is None or event.start_at is not None:
             return
 
         details = await fetch_event_details(slug)
 
         with get_conn() as conn:
-            conn.execute(
-                """UPDATE events
-                   SET start_at = COALESCE(?, start_at),
-                       capacity = COALESCE(?, capacity)
-                   WHERE event_slug = ? AND start_at IS NULL""",
-                (details.start_at, details.capacity, slug),
+            conn.query(Event).filter(
+                Event.event_slug == slug, Event.start_at.is_(None)
+            ).update(
+                {
+                    Event.start_at: func.coalesce(details.start_at, Event.start_at),
+                    Event.capacity: func.coalesce(details.capacity, Event.capacity),
+                },
+                synchronize_session=False,
             )
         logger.info(
             "kktix: enriched event %s start_at=%s capacity=%s",

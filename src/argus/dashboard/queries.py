@@ -8,8 +8,10 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func, or_, select
+
 from argus import config
-from argus.database import get_conn
+from argus.database import Event, Ticket, WebhookLog, get_conn
 
 
 _UTC = ZoneInfo("UTC")
@@ -18,44 +20,53 @@ _UTC = ZoneInfo("UTC")
 def get_event(slug: str) -> dict[str, Any] | None:
     """Return event metadata for a single event, or None if not found."""
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT event_slug, event_name, channel, start_at, capacity"
-            " FROM events WHERE event_slug = ?",
-            (slug,),
-        ).fetchone()
-    return dict(row) if row else None
+        row = conn.get(Event, slug)
+    if row is None:
+        return None
+    return _event_dict(row)
 
 
 def list_webhook_logs(limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
     """Return recent webhook log entries, newest first."""
     with get_conn() as conn:
         rows = conn.execute(
-            """SELECT id, method, channel, headers, body, created_at
-               FROM webhook_logs
-               ORDER BY id DESC
-               LIMIT ? OFFSET ?""",
-            (limit, offset),
-        ).fetchall()
-    return [dict(r) for r in rows]
+            select(
+                WebhookLog.id,
+                WebhookLog.method,
+                WebhookLog.channel,
+                WebhookLog.headers,
+                WebhookLog.body,
+                WebhookLog.created_at,
+            )
+            .order_by(WebhookLog.id.desc())
+            .limit(limit)
+            .offset(offset)
+        ).all()
+    return [dict(r._mapping) for r in rows]
 
 
 def count_webhook_logs() -> int:
+    """Return the number of stored webhook logs."""
     with get_conn() as conn:
-        return conn.execute("SELECT COUNT(*) FROM webhook_logs").fetchone()[0]
+        return conn.scalar(select(func.count()).select_from(WebhookLog)) or 0
 
 
 def delete_webhook_log(log_id: int) -> bool:
     """Delete a single webhook log entry. Returns True if deleted, False if not found."""
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM webhook_logs WHERE id = ?", (log_id,))
-        return cur.rowcount > 0
+        row = conn.get(WebhookLog, log_id)
+        if row is None:
+            return False
+        conn.delete(row)
+        return True
 
 
 def clear_webhook_logs() -> int:
     """Delete all webhook log entries. Returns the number of rows removed."""
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM webhook_logs")
-        return cur.rowcount
+        count = conn.scalar(select(func.count()).select_from(WebhookLog)) or 0
+        conn.query(WebhookLog).delete(synchronize_session=False)
+        return count
 
 
 def delete_event(slug: str) -> bool:
@@ -63,30 +74,29 @@ def delete_event(slug: str) -> bool:
 
     Returns True if the event existed and was deleted, False if not found.
     Children (tickets) are deleted first, then the event row, in a single
-    transaction (the sqlite3 connection commits at context-manager exit, or
-    rolls back on exception).
+    transaction (the ORM session commits at context-manager exit, or rolls back
+    on exception).
     """
     with get_conn() as conn:
-        existing = conn.execute(
-            "SELECT 1 FROM events WHERE event_slug = ?", (slug,)
-        ).fetchone()
+        existing = conn.get(Event, slug)
         if existing is None:
             return False
-        conn.execute("DELETE FROM tickets WHERE event_slug = ?", (slug,))
-        conn.execute("DELETE FROM events WHERE event_slug = ?", (slug,))
+        conn.query(Ticket).filter(Ticket.event_slug == slug).delete(
+            synchronize_session=False
+        )
+        conn.delete(existing)
     return True
 
 
 def list_events() -> list[dict[str, Any]]:
     """Return all events that have a channel assigned, newest first."""
     with get_conn() as conn:
-        rows = conn.execute(
-            """SELECT event_slug, event_name, channel, start_at, capacity
-               FROM events
-               WHERE channel IS NOT NULL
-               ORDER BY start_at IS NULL, start_at DESC, event_slug"""
-        ).fetchall()
-    return [dict(r) for r in rows]
+        rows = conn.scalars(
+            select(Event)
+            .where(Event.channel.is_not(None))
+            .order_by(Event.start_at.is_(None), Event.start_at.desc(), Event.event_slug)
+        ).all()
+    return [_event_dict(r) for r in rows]
 
 
 def get_timeseries(slug: str) -> dict[str, Any] | None:
@@ -101,20 +111,16 @@ def get_timeseries(slug: str) -> dict[str, Any] | None:
     event has no tickets yet.
     """
     with get_conn() as conn:
-        event_row = conn.execute(
-            "SELECT event_slug, event_name, channel, start_at, capacity"
-            " FROM events WHERE event_slug = ?",
-            (slug,),
-        ).fetchone()
+        event_row = conn.get(Event, slug)
         if event_row is None:
             return None
-        event = dict(event_row)
+        event = _event_dict(event_row)
 
-        first_paid = conn.execute(
-            "SELECT MIN(paid_at) FROM tickets"
-            " WHERE event_slug = ? AND paid_at IS NOT NULL",
-            (slug,),
-        ).fetchone()[0]
+        first_paid = conn.scalar(
+            select(func.min(Ticket.paid_at)).where(
+                Ticket.event_slug == slug, Ticket.paid_at.is_not(None)
+            )
+        )
 
         if not first_paid:
             return {
@@ -142,14 +148,14 @@ def get_timeseries(slug: str) -> dict[str, Any] | None:
         days = _date_range(start_day, end_day)
         boundaries = [_end_of_day_utc(d, tz) for d in days]
 
-        ticket_names = [
-            r[0]
-            for r in conn.execute(
-                "SELECT DISTINCT ticket_name FROM tickets"
-                " WHERE event_slug = ? ORDER BY ticket_name",
-                (slug,),
+        ticket_names = list(
+            conn.scalars(
+                select(Ticket.ticket_name)
+                .where(Ticket.event_slug == slug)
+                .distinct()
+                .order_by(Ticket.ticket_name)
             )
-        ]
+        )
 
         # One query per day. For typical ranges (≤90 days) this is fast enough
         # on indexed paid_at; if it ever becomes a bottleneck, fold into a
@@ -157,15 +163,16 @@ def get_timeseries(slug: str) -> dict[str, Any] | None:
         per_day: list[dict[str, int]] = []
         for boundary in boundaries:
             rows = conn.execute(
-                """SELECT ticket_name, COUNT(*) AS cnt
-                   FROM tickets
-                   WHERE event_slug = ?
-                     AND paid_at IS NOT NULL AND paid_at <= ?
-                     AND (cancelled_at IS NULL OR cancelled_at > ?)
-                   GROUP BY ticket_name""",
-                (slug, boundary, boundary),
-            ).fetchall()
-            per_day.append({r["ticket_name"]: r["cnt"] for r in rows})
+                select(Ticket.ticket_name, func.count().label("cnt"))
+                .where(
+                    Ticket.event_slug == slug,
+                    Ticket.paid_at.is_not(None),
+                    Ticket.paid_at <= boundary,
+                    or_(Ticket.cancelled_at.is_(None), Ticket.cancelled_at > boundary),
+                )
+                .group_by(Ticket.ticket_name)
+            ).all()
+            per_day.append({r.ticket_name: r.cnt for r in rows})
 
     datasets: list[dict[str, Any]] = [
         {"name": "Total", "data": [sum(d.values()) for d in per_day]},
@@ -200,3 +207,13 @@ def _date_range(start: date, end: date) -> list[date]:
         days.append(d)
         d = d + timedelta(days=1)
     return days
+
+
+def _event_dict(event: Event) -> dict[str, Any]:
+    return {
+        "event_slug": event.event_slug,
+        "event_name": event.event_name,
+        "channel": event.channel,
+        "start_at": event.start_at,
+        "capacity": event.capacity,
+    }

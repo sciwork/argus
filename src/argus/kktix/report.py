@@ -1,13 +1,13 @@
 from pathlib import Path
 import json
 import logging
-import sqlite3
 
 from jinja2 import Environment, FileSystemLoader
+from sqlalchemy import func, or_, select, update
 
 from argus import discord
 from argus.channels import resolve_webhook_url
-from argus.database import get_conn
+from argus.database import Event, Ticket, get_conn
 from argus.timeutil import utcnow_iso
 
 
@@ -92,44 +92,30 @@ def build_payload(
 
 
 def send_report() -> None:
+    """Send one registration report for each active channel."""
     # Only report on channels that have events whose start_at has not yet passed.
     # Events with start_at IS NULL (not yet enriched) are included as well.
     now = utcnow_iso()
     with get_conn() as conn:
         rows = conn.execute(
-            """SELECT DISTINCT channel, event_slug, event_name, last_reported_at FROM events
-               WHERE channel IS NOT NULL
-                 AND (start_at IS NULL OR start_at > ?)""",
-            (now,),
-        ).fetchall()
+            select(
+                Event.channel,
+                Event.event_slug,
+                Event.event_name,
+                Event.last_reported_at,
+            ).where(
+                Event.channel.is_not(None),
+                or_(Event.start_at.is_(None), Event.start_at > now),
+            )
+        ).all()
 
-        ## channel_event_map example:
-        ## {
-        ##   "channel1": {
-        ##       "event_slug1": {
-        ##           "event_slug": "event_slug1",
-        ##           "event_name": "Event 1",
-        ##           "last_reported_at": "2024-06-01T00:00:00Z"
-        ##       },
-        ##       "event_slug2": {
-        ##           "event_slug": "event_slug2",
-        ##           "event_name": "Event 2",
-        ##           "last_reported_at": None
-        ##       }
-        ##   },
-        ##   "channel2": {"event_slug3": {...}},
-        ## }
-
+        # Group events so each channel gets one report.
         channel_event_map: dict[str, dict[str, dict]] = {}
-        for r in rows:
-            ch = r["channel"]
-            slug = r["event_slug"]
-            if ch not in channel_event_map:
-                channel_event_map[ch] = {}
-            channel_event_map[ch][slug] = {
+        for channel, slug, name, last_reported_at in rows:
+            channel_event_map.setdefault(channel, {})[slug] = {
                 "event_slug": slug,
-                "event_name": r["event_name"],
-                "last_reported_at": r["last_reported_at"],
+                "event_name": name,
+                "last_reported_at": last_reported_at,
             }
 
         if not channel_event_map:
@@ -143,46 +129,50 @@ def send_report() -> None:
 
 
 def _send_report_for_channel(
-    conn: sqlite3.Connection, channel: str, event_map: dict[str, dict], now: str
+    conn, channel: str, event_map: dict[str, dict], now: str
 ) -> None:
     url = resolve_webhook_url(channel)
     slugs = list(event_map.keys())
-    placeholders = ",".join("?" * len(slugs))
 
-    # 1. now_count per (event_slug, ticket_name)
+    # Count active tickets now.
     now_rows = conn.execute(
-        f"""SELECT t.event_slug, e.event_name, t.ticket_name, COUNT(*) AS cnt
-           FROM tickets t
-           JOIN events e ON e.event_slug = t.event_slug
-           WHERE t.event_slug IN ({placeholders}) AND t.order_state = 'activated'
-           GROUP BY t.event_slug, t.ticket_name""",
-        slugs,
-    ).fetchall()
+        select(
+            Ticket.event_slug,
+            Event.event_name,
+            Ticket.ticket_name,
+            func.count().label("cnt"),
+        )
+        .join(Event, Event.event_slug == Ticket.event_slug)
+        .where(Ticket.event_slug.in_(slugs), Ticket.order_state == "activated")
+        .group_by(Ticket.event_slug, Event.event_name, Ticket.ticket_name)
+    ).all()
 
-    # 2. prev_count: query once per event that has a last_reported_at
+    # Rebuild the count at the last report time.
     prev_counts: dict[tuple[str, str], int] = {}
     for slug, ev in event_map.items():
         lra = ev["last_reported_at"]
         if lra is None:
             continue
         for r in conn.execute(
-            """SELECT ticket_name, COUNT(*) AS cnt
-               FROM tickets
-               WHERE event_slug = ?
-                 AND paid_at IS NOT NULL AND paid_at <= ?
-                 AND (cancelled_at IS NULL OR cancelled_at > ?)
-               GROUP BY ticket_name""",
-            (slug, lra, lra),
+            select(Ticket.ticket_name, func.count().label("cnt"))
+            .where(
+                Ticket.event_slug == slug,
+                Ticket.paid_at.is_not(None),
+                Ticket.paid_at <= lra,
+                or_(Ticket.cancelled_at.is_(None), Ticket.cancelled_at > lra),
+            )
+            .group_by(Ticket.ticket_name)
         ):
-            prev_counts[(slug, r["ticket_name"])] = r["cnt"]
+            prev_counts[(slug, r.ticket_name)] = r.cnt
 
     event_meta = [dict(r) for r in event_map.values()]
-    rows = [dict(r) for r in now_rows]
+    rows = [dict(r._mapping) for r in now_rows]
     payload = build_payload(rows, event_meta, prev_counts)
 
     ok = discord.post(url, **payload)
     if ok:
         conn.execute(
-            f"UPDATE events SET last_reported_at = ? WHERE event_slug IN ({placeholders})",
-            [now, *slugs],
+            update(Event)
+            .where(Event.event_slug.in_(slugs))
+            .values(last_reported_at=now)
         )

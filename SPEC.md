@@ -150,7 +150,7 @@ argus/
 | `REPORT_HOUR` | `9` | Daily report hour |
 | `REPORT_MINUTE` | `0` | Daily report minute |
 | `REPORT_TIMEZONE` | `Asia/Taipei` | Daily report timezone |
-| `DB_PATH` | `argus.db` | SQLite file path |
+| `DATABASE_URL` | `sqlite:///argus.db` | SQLAlchemy SQLite database URL |
 | `HEALTHCHECK_DB_TIMEOUT` | `1.0` | Health check DB timeout in seconds |
 | `LOG_LEVEL` | `INFO` | Python application log level |
 | `ALLOWED_EMAILS` | — | Comma-separated email allowlist for dashboard access |
@@ -541,7 +541,7 @@ ARGUS_MANUAL_TEST=1 uv run pytest tests/test_discord_format_manual.py -v -s
 
 1. Push repo to GitHub
 2. Create new Railway project → Deploy from GitHub repo
-3. Add a Volume, mount at `/data`, set `DB_PATH=/data/argus.db`
+3. Add a Volume, mount at `/data`, set `DATABASE_URL=sqlite:////data/argus.db`
 4. Set all required environment variables in Railway dashboard
 5. Railway builds `Dockerfile`, installs the package and SQLite CLI, then runs uvicorn against `argus.main:app`. The exact start command (with `$PORT` injection) comes from `railway.json`'s `startCommand`, which overrides the Dockerfile's `CMD`.
 

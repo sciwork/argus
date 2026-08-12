@@ -1,6 +1,8 @@
 import logging
 
-from argus.database import get_conn
+from sqlalchemy.exc import IntegrityError
+
+from argus.database import Event, Ticket, get_conn
 from argus.timeutil import to_utc
 
 
@@ -12,6 +14,15 @@ def _is_kktix_test_notification(event: dict) -> bool:
 
 
 def handle_notification(notification: dict, channel: str) -> list[str]:
+    """Store one KKTIX notification.
+
+    Args:
+        notification: Parsed KKTIX notification body.
+        channel: Normalized channel name for the event.
+
+    Returns:
+        Slugs for events that were added for the first time.
+    """
     type_ = notification.get("type")
     event = notification.get("event", {})
     order = notification.get("order", {})
@@ -35,42 +46,53 @@ def handle_notification(notification: dict, channel: str) -> list[str]:
         tickets = notification.get("tickets", [])
 
         with get_conn() as conn:
-            cur = conn.execute(
-                """INSERT INTO events (event_slug, event_name, channel)
-                   VALUES (?, ?, ?)
-                   ON CONFLICT(event_slug) DO NOTHING""",
-                (event_slug, event_name, channel),
-            )
-            if cur.rowcount == 1:
+            if _add_if_missing(
+                conn,
+                event_slug,
+                Event(
+                    event_slug=event_slug,
+                    event_name=event_name,
+                    channel=channel,
+                ),
+            ):
                 new_slugs.append(event_slug)
-            conn.executemany(
-                """INSERT INTO tickets
-                   (ticket_id, ticket_name, event_slug, order_id, order_state,
-                    contact_name, contact_email, paid_at)
-                   VALUES (?, ?, ?, ?, 'activated', ?, ?, ?)
-                   ON CONFLICT(ticket_id) DO NOTHING""",
-                [
-                    (
-                        t["id"],
-                        t["name"],
-                        event_slug,
-                        order_id,
-                        contact.get("name"),
-                        contact.get("email"),
-                        to_utc(order.get("paid_at")),
-                    )
-                    for t in tickets
-                ],
-            )
+            for ticket in tickets:
+                _add_if_missing(
+                    conn,
+                    ticket["id"],
+                    Ticket(
+                        ticket_id=ticket["id"],
+                        ticket_name=ticket["name"],
+                        event_slug=event_slug,
+                        order_id=order_id,
+                        order_state="activated",
+                        contact_name=contact.get("name"),
+                        contact_email=contact.get("email"),
+                        paid_at=to_utc(order.get("paid_at")),
+                    ),
+                )
 
     elif type_ == "order_cancelled":
         with get_conn() as conn:
-            conn.execute(
-                """UPDATE tickets
-                   SET order_state = 'cancelled',
-                       cancelled_at = ?
-                   WHERE order_id = ?""",
-                (to_utc(order.get("cancelled_at")), order_id),
+            conn.query(Ticket).filter(Ticket.order_id == order_id).update(
+                {
+                    Ticket.order_state: "cancelled",
+                    Ticket.cancelled_at: to_utc(order.get("cancelled_at")),
+                },
+                synchronize_session=False,
             )
 
     return new_slugs
+
+
+def _add_if_missing(conn, primary_key, instance) -> bool:
+    if conn.get(type(instance), primary_key) is not None:
+        return False
+    try:
+        # The savepoint handles two requests that insert the same row.
+        with conn.begin_nested():
+            conn.add(instance)
+            conn.flush()
+    except IntegrityError:
+        return False
+    return True
