@@ -99,7 +99,7 @@ You will be redirected to Google to sign in. Only emails in `ALLOWED_EMAILS` are
 
 When deploying (e.g. to Railway):
 
-- **Railway builds the Dockerfile** using `python:3.12-slim-bookworm`, installs `sqlite3` for SSH database inspection, installs the package with `pip install .`, and starts uvicorn via `railway.json` `startCommand`. Railway injects `$PORT` and the start command binds to it.
+- **Railway builds the Dockerfile** using `python:3.12-slim-bookworm`, installs the package with `pip install .`, and starts uvicorn via `railway.json` `startCommand`. Railway injects `$PORT` and the start command binds to it.
 - **For SQLite, mount a persistent volume** at `/data` and set `DATABASE_URL=sqlite:////data/argus.db`. SQLite written to the container's local filesystem will be wiped on every redeploy.
 - **`SESSION_SECRET` is required** — the app refuses to boot without it. Generate with `python -c "import secrets; print(secrets.token_hex(32))"`.
 - **Port:** the Dockerfile's `CMD` binds to a fixed port 8000. Railway overrides this via `railway.json`'s `startCommand`, which substitutes its injected `$PORT`. To change the port in non-Railway environments, override the container command (e.g. `docker run … argus-image uvicorn argus.main:app --host 0.0.0.0 --port 9000`).

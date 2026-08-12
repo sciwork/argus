@@ -543,7 +543,7 @@ ARGUS_MANUAL_TEST=1 uv run pytest tests/test_discord_format_manual.py -v -s
 2. Create new Railway project → Deploy from GitHub repo
 3. Add a Volume, mount at `/data`, set `DATABASE_URL=sqlite:////data/argus.db`
 4. Set all required environment variables in Railway dashboard
-5. Railway builds `Dockerfile`, installs the package and SQLite CLI, then runs uvicorn against `argus.main:app`. The exact start command (with `$PORT` injection) comes from `railway.json`'s `startCommand`, which overrides the Dockerfile's `CMD`.
+5. Railway builds `Dockerfile`, installs the package, then runs uvicorn against `argus.main:app`. The exact start command (with `$PORT` injection) comes from `railway.json`'s `startCommand`, which overrides the Dockerfile's `CMD`.
 
 ```json
 {
