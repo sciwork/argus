@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import math
 
 from sqlalchemy import ForeignKey, Integer, String, create_engine, text
 from sqlalchemy.engine import Engine
@@ -89,6 +90,8 @@ def create_db_engine(database_url: str, connect_timeout: float | None = None) ->
         backend = make_url(database_url).get_backend_name()
         if backend == "sqlite":
             connect_args["timeout"] = connect_timeout
+        elif backend == "postgresql":
+            connect_args["connect_timeout"] = max(1, math.ceil(connect_timeout))
     return create_engine(database_url, connect_args=connect_args)
 
 

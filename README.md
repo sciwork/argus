@@ -117,7 +117,7 @@ uv sync --group dev               # create .venv and install all dependencies
 set -a && source .env && set +a
 
 uv run uvicorn argus.main:app --host 0.0.0.0 --port 8000  # start server
-uv run pytest tests/              # run automated tests
+uv run pytest tests/              # run tests, including clean Docker builds
 uv run ruff check src tests       # lint
 uv run ruff format src tests      # format
 

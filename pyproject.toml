@@ -27,6 +27,7 @@ dependencies = [
   "authlib<1.7",
   "itsdangerous",
   "jinja2",
+  "psycopg[binary]",
   "sqlalchemy",
 ]
 
