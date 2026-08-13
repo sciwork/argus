@@ -1,0 +1,32 @@
+{#
+  Required variables:
+  - events: A list of event dictionaries. Each event has:
+    - name: Event title.
+    - tickets: A list of ticket dictionaries with name, count, and delta.
+      delta is null for an event's first report; otherwise it is a signed string.
+    - total: Active ticket count.
+    - total_delta: null for an event's first report; otherwise a signed string.
+    - color: Discord embed color as an integer.
+#}
+{
+  "content": "📊 **Argus Daily Registration Summary**",
+  "embeds": [
+{% for event in events %}
+{% set description = namespace(value="") %}
+{% for ticket in event.tickets %}
+{% set description.value = description.value ~ ticket.name ~ "　" ~ ticket.count ~ ("　(" ~ ticket.delta ~ ")" if ticket.delta else "") ~ "\n" %}
+{% endfor %}
+    {
+      "title": {{ ("🎟️ " ~ event.name) | tojson }},
+      "description": {{ (description.value ~ "─────────────\n**Total　" ~ event.total ~ ("　(" ~ event.total_delta ~ ")" if event.total_delta else "") ~ "**") | tojson }},
+      "color": {{ event.color }}
+    }{% if not loop.last %},{% endif %}
+{% else %}
+    {
+      "title": "📋 Argus Daily Registration Summary",
+      "description": "No active event registrations.",
+      "color": 8947840
+    }
+{% endfor %}
+  ]
+}

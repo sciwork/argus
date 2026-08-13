@@ -1,17 +1,23 @@
-from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import json
 import logging
 import sqlite3
+
+from jinja2 import Environment, FileSystemLoader
 
 from argus import discord
 from argus.channels import resolve_webhook_url
 from argus.database import get_conn
 from argus.timeutil import utcnow_iso
 
+
 logger = logging.getLogger(__name__)
 
 _COLOR_INCREASE = 0x1D9E75
 _COLOR_DECREASE = 0xE24B4A
 _COLOR_NEUTRAL = 0x888780
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+_templates = Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescape=False)
 
 
 def build_payload(
@@ -19,9 +25,6 @@ def build_payload(
     event_meta: list[dict],
     prev_counts: dict[tuple[str, str], int],
 ) -> dict:
-    tw = timezone(timedelta(hours=8))
-    now_str = datetime.now(tw).strftime("%Y-%m-%d %H:%M")
-
     first_report_slugs = {
         e["event_slug"] for e in event_meta if e["last_reported_at"] is None
     }
@@ -33,61 +36,60 @@ def build_payload(
             event_map[slug] = {"name": row["event_name"], "tickets": []}
         event_map[slug]["tickets"].append(row)
 
-    embeds = []
+    events = []
     for slug, data in event_map.items():
         total_now = 0
         total_prev = 0
         is_first = slug in first_report_slugs
-        lines = []
+        ticket_rows = []
 
         for t in data["tickets"]:
             ticket_name = t["ticket_name"]
             count = t["cnt"]
             total_now += count
             if is_first:
-                lines.append(f"{ticket_name}　{count}")
+                ticket_rows.append({"name": ticket_name, "count": count, "delta": None})
             else:
                 prev = prev_counts.get((slug, ticket_name), 0)
                 total_prev += prev
                 diff = count - prev
-                delta = f"(+{diff})" if diff >= 0 else f"({diff})"
-                lines.append(f"{ticket_name}　{count}　{delta}")
+                delta = f"+{diff}" if diff >= 0 else str(diff)
+                ticket_rows.append(
+                    {"name": ticket_name, "count": count, "delta": delta}
+                )
 
-        lines.append("─────────────")
         if is_first:
-            lines.append(f"**Total　{total_now}**")
             color = _COLOR_NEUTRAL
+            total_delta = None
         else:
             total_diff = total_now - total_prev
-            total_delta = f"(+{total_diff})" if total_diff >= 0 else f"({total_diff})"
-            lines.append(f"**Total　{total_now}　{total_delta}**")
+            total_delta = f"+{total_diff}" if total_diff >= 0 else str(total_diff)
             color = (
                 _COLOR_INCREASE
                 if total_diff > 0
-                else _COLOR_DECREASE if total_diff < 0 else _COLOR_NEUTRAL
+                else _COLOR_DECREASE
+                if total_diff < 0
+                else _COLOR_NEUTRAL
             )
 
-        embeds.append(
+        events.append(
             {
-                "title": f"🎟️ {data['name']}",
-                "description": "\n".join(lines),
+                "name": data["name"],
+                "tickets": ticket_rows,
+                "total": total_now,
+                "total_delta": total_delta,
                 "color": color,
             }
         )
 
-    if not embeds:
-        embeds.append(
-            {
-                "title": "📋 Argus Daily Registration Summary",
-                "description": "No active event registrations.",
-                "color": _COLOR_NEUTRAL,
-            }
+    # Keep Discord's payload schema and display text in the JSON template.
+    template = _templates.get_template("report.json.j2")
+    return json.loads(
+        template.render(
+            events=events,
         )
+    )
 
-    return {
-        "content": f"📊 **Argus Daily Registration Summary**　{now_str} (Asia/Taipei)",
-        "embeds": embeds,
-    }
 
 def send_report() -> None:
     # Only report on channels that have events whose start_at has not yet passed.
@@ -101,14 +103,14 @@ def send_report() -> None:
             (now,),
         ).fetchall()
 
-        ## channel_event_map example: 
+        ## channel_event_map example:
         ## {
         ##   "channel1": {
         ##       "event_slug1": {
         ##           "event_slug": "event_slug1",
         ##           "event_name": "Event 1",
         ##           "last_reported_at": "2024-06-01T00:00:00Z"
-        ##       }, 
+        ##       },
         ##       "event_slug2": {
         ##           "event_slug": "event_slug2",
         ##           "event_name": "Event 2",

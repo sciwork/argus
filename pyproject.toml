@@ -7,6 +7,7 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
 "argus.dashboard" = ["templates/*.html"]
+"argus.kktix" = ["templates/*.j2"]
 
 [tool.setuptools.dynamic]
 version = { attr = "argus.__version__" }
@@ -23,7 +24,7 @@ dependencies = [
   "apscheduler",
   "httpx",
   "beautifulsoup4",
-  "authlib",
+  "authlib<1.7",
   "itsdangerous",
   "jinja2",
 ]
@@ -33,7 +34,9 @@ dev = [
   "ruff",
   "pytest",
   "pytest-asyncio",
+  "pytest-cov",
   "commitizen",
+  "oidc-provider-mock<0.4",
 ]
 
 [tool.ruff]

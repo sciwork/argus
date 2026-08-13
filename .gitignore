@@ -7,7 +7,6 @@ dist/
 .env
 *.db
 .venv/
-uv.lock
 .ruff_cache/
 .pytest_cache/
 

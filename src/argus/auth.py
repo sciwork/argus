@@ -6,6 +6,9 @@ from argus import config
 
 # Module-level OAuth instance, lazily configured
 _oauth: OAuth | None = None
+_GOOGLE_SERVER_METADATA_URL = (
+    "https://accounts.google.com/.well-known/openid-configuration"
+)
 
 
 def get_oauth() -> OAuth:
@@ -15,7 +18,7 @@ def get_oauth() -> OAuth:
         oauth = OAuth()
         oauth.register(
             name="google",
-            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            server_metadata_url=_GOOGLE_SERVER_METADATA_URL,
             client_id=config.secrets.require_google_oauth_client_id(),
             client_secret=config.secrets.require_google_oauth_client_secret(),
             client_kwargs={"scope": "openid email profile"},
