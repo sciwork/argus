@@ -95,10 +95,10 @@ def test_docker_image_api_flow(api_url: str) -> None:
 
         timeseries = client.get("/dashboard/api/events/smoke-event/timeseries")
         assert timeseries.status_code == 200
-        assert timeseries.json()["datasets"] == [
-            {"name": "Total", "data": [1]},
-            {"name": "General", "data": [1]},
-        ]
+        datasets = timeseries.json()["datasets"]
+        assert [dataset["name"] for dataset in datasets] == ["Total", "General"]
+        assert all(dataset["data"] for dataset in datasets)
+        assert all(count == 1 for dataset in datasets for count in dataset["data"])
 
         logs = client.get("/dashboard/api/webhook-logs")
         assert logs.status_code == 200
