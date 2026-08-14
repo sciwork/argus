@@ -4,7 +4,26 @@ import logging
 
 import pytest
 
-from argus import config, health
+from argus import config, database, health
+
+
+def test_create_db_engine_rounds_postgresql_connect_timeout(monkeypatch):
+    """Configure PostgreSQL's integer timeout without opening a connection."""
+    captured = {}
+
+    def fake_create_engine(database_url, **kwargs):
+        captured["database_url"] = database_url
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(database, "create_engine", fake_create_engine)
+
+    database.create_db_engine("postgresql+psycopg://user:pass@db/argus", 1.2)
+
+    assert captured == {
+        "database_url": "postgresql+psycopg://user:pass@db/argus",
+        "connect_args": {"connect_timeout": 2},
+    }
 
 
 def test_check_database_succeeds_with_sqlite_url(tmp_path, monkeypatch):
