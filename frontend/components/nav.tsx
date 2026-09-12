@@ -8,7 +8,7 @@ export function Nav() {
   const auth = useAuth();
 
   return (
-    <nav className="flex items-center gap-6 border-b border-border px-6 py-4 text-sm">
+    <nav className="sticky top-0 z-10 flex items-center gap-6 border-b border-border bg-background px-6 py-4 text-sm">
       <Link href="/" className="font-heading text-base font-semibold">
         Argus
       </Link>
