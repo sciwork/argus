@@ -7,3 +7,6 @@ __pycache__
 *.py[cod]
 argus.db
 *.db
+frontend/node_modules
+frontend/.next
+frontend/out

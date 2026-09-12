@@ -53,9 +53,10 @@ Argus uses a **vertical slice** layout: each feature owns its full stack (HTTP r
 | `GET` | `/dashboard/login` | — | Start Google OAuth flow | [Dashboard](#dashboard) |
 | `GET` | `/dashboard/oauth/callback` | — | OAuth redirect target | [Dashboard](#dashboard) |
 | `GET` | `/dashboard/logout` | — | Clear session, redirect to login | [Dashboard](#dashboard) |
-| `GET` | `/dashboard` | session (HTML) | Event list page | [Dashboard](#dashboard) |
-| `GET` | `/dashboard/events/{slug}` | session (HTML) | Per-event chart page | [Dashboard](#dashboard) |
-| `GET` | `/dashboard/webhook-logs` | session (HTML) | Webhook log viewer page | [Dashboard](#dashboard) |
+| `GET` | `/dashboard` | public (shell) | Event list page (static Next.js export) | [Dashboard](#dashboard) |
+| `GET` | `/dashboard/events` | public (shell) | Per-event chart page, `?slug=<slug>` (static Next.js export) | [Dashboard](#dashboard) |
+| `GET` | `/dashboard/webhook-logs` | public (shell) | Webhook log viewer page (static Next.js export) | [Dashboard](#dashboard) |
+| `GET` | `/dashboard/api/me` | session (401) | JSON: currently authenticated user | [Dashboard](#dashboard) |
 | `GET` | `/dashboard/api/events` | session (401) | JSON: event list | [Dashboard](#dashboard) |
 | `GET` | `/dashboard/api/events/{slug}/timeseries` | session (401) | JSON: per-event time series | [Dashboard](#dashboard) |
 | `DELETE` | `/dashboard/api/events/{slug}` | session (401) | Permanently delete event + its tickets | [Dashboard](#dashboard) |
@@ -66,6 +67,7 @@ Argus uses a **vertical slice** layout: each feature owns its full stack (HTTP r
 
 **Auth column legend:**
 - `x-kktix-secret header` — request must include header matching `WEBHOOK_SECRET` (constant-time compared)
+- `public (shell)` — served with no server-side session check at all; the page itself is a public static shell, and it protects its own data by calling `/dashboard/api/*` routes, which each require the session cookie client-side (a request without a valid session gets a 401 from those API calls, not from the page)
 - `session (HTML)` — protected by signed session cookie; missing/invalid → 302 to `/dashboard/login`
 - `session (401)` — same protection but JSON routes return 401 instead of redirecting
 
@@ -91,10 +93,9 @@ argus/
 │       │   ├── __init__.py
 │       │   ├── router.py         # /dashboard/* routes
 │       │   ├── queries.py        # time series queries
-│       │   └── templates/
-│       │       ├── _base.html    # shared layout
-│       │       ├── index.html    # event list
-│       │       └── event.html    # per-event chart
+│       │   └── frontend/         # built Next.js static export, copied in at
+│       │                         # build time (gitignored); served by main.py's
+│       │                         # StaticFiles mount at /dashboard
 │       │
 │       │   # ── shared infrastructure ──
 │       ├── auth.py               # OAuth client + require_login dependency (reusable)
@@ -113,6 +114,8 @@ argus/
 │   ├── conftest.py
 │   ├── test_*.py                 # automated tests
 │   └── test_discord_format_manual.py  # opt-in test that sends real Discord webhooks
+├── frontend/                     # Next.js dashboard UI (source); builds into
+│                                  # src/argus/dashboard/frontend/ (see above)
 ├── .env.example
 ├── pyproject.toml
 ├── railway.json
@@ -391,7 +394,7 @@ A web UI that visualizes registration trends per event over time. Implemented as
 
 ### Routes
 
-See [API Reference](#api-reference) for the canonical list. All routes under `/dashboard/*` (except `login` and `oauth/callback`) require an authenticated session. HTML routes redirect to `/dashboard/login` on failure; JSON API routes return `401`.
+See [API Reference](#api-reference) for the canonical list. The dashboard UI itself is a statically-exported Next.js app served same-origin under `/dashboard`, `/dashboard/events`, and `/dashboard/webhook-logs` — these three pages are public shells with no server-side session check; each gates its own content client-side by calling `/dashboard/api/me` (and other `/dashboard/api/*` routes) and redirecting to `/dashboard/login` in the browser if that call 401s. Every `/dashboard/api/*` route requires the session cookie and returns `401` if it's missing or invalid.
 
 ### Authentication
 
@@ -399,11 +402,11 @@ Server-side OAuth 2.0 with Google as the identity provider. After successful OAu
 
 **Flow:**
 
-1. Visit `/dashboard` (or any protected route) without session → 302 to `/dashboard/login`
+1. Visit `/dashboard` without a session → the static shell loads, its client-side `/dashboard/api/me` call 401s, and the browser is redirected to `/dashboard/login`
 2. `/dashboard/login` → 302 to Google consent screen
 3. Google → `/dashboard/oauth/callback?code=...`
 4. Backend exchanges code for `id_token`, verifies email is in `ALLOWED_EMAILS`
-5. On success: session cookie written, 302 to original destination (or `/dashboard`)
+5. On success: session cookie written, 302 to `/dashboard`
 6. On rejection: 403 page
 
 Session is signed using `SESSION_SECRET` via Starlette's `SessionMiddleware`.

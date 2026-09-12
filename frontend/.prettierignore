@@ -1,0 +1,20 @@
+# Ignore artifacts:
+build
+coverage
+.next
+node_modules
+out
+storybook-static
+pnpm-lock.yaml
+
+# Documentation
+**/docs/
+
+# Markdown is left to its own formatting (skill docs, READMEs, etc.)
+**/*.md
+**/*.mdx
+
+# /design-sync generated entry barrels — hand-ordered imports (the process shim
+# MUST stay first); keep import-sort from reordering them.
+packages/components/src/_ds-components-entry.ts
+console/src/_ds-console-entry.ts
