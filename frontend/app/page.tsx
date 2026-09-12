@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { CalendarX, ChevronRight, RefreshCw } from "lucide-react";
+import { CalendarX, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { deleteEvent, listEvents, triggerReport } from "@/apis/events";
 import { EmptyState } from "@/components/empty-state";
@@ -84,7 +84,7 @@ export default function DashboardHomePage() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-start gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
         <div>
           <h1 className="font-heading text-3xl font-semibold">Events</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -128,7 +128,7 @@ export default function DashboardHomePage() {
                   <div className="text-base font-medium">
                     {event.event_name}
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="mt-2 flex flex-col items-start gap-1 text-xs text-muted-foreground tablet:flex-row tablet:items-center tablet:gap-2">
                     {event.channel && (
                       <Badge className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary">
                         {event.channel}
@@ -139,27 +139,26 @@ export default function DashboardHomePage() {
                     )}
                     {startLabel && (
                       <>
-                        <span className="text-border">·</span>
+                        <span className="hidden text-border tablet:inline">
+                          ·
+                        </span>
                         <span>Starts {startLabel}</span>
                       </>
                     )}
                   </div>
                 </Link>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() =>
-                      handleDelete(event.event_slug, event.event_name)
-                    }
-                    disabled={isDeleting}
-                  >
-                    Delete
-                  </Button>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() =>
+                    handleDelete(event.event_slug, event.event_name)
+                  }
+                  disabled={isDeleting}
+                >
+                  Delete
+                </Button>
               </div>
             );
           })}
