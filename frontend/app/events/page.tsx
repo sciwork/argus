@@ -10,15 +10,8 @@ import { EmptyState } from "@/components/empty-state";
 import { EventChart } from "@/components/event-chart";
 import { Badge } from "@/components/ui/badge";
 import { useRequireAuth } from "@/hooks/use-require-auth";
+import { formatEventStartDate } from "@/lib/datetime";
 import type { EventTimeseries } from "@/types/responses/events";
-
-function formatStartDate(startAt: string | null): string | null {
-  if (!startAt) return null;
-  return new Date(`${startAt}Z`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function EventDetailContent() {
   const auth = useRequireAuth();
@@ -80,7 +73,7 @@ function EventDetailContent() {
     );
   }
 
-  const startLabel = formatStartDate(timeseries.event.start_at);
+  const startLabel = formatEventStartDate(timeseries.event.start_at);
 
   return (
     <>

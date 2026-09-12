@@ -9,17 +9,8 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/use-require-auth";
+import { formatEventStartDate } from "@/lib/datetime";
 import type { EventSummary } from "@/types/responses/events";
-
-function formatStartDate(startAt: string | null): string | null {
-  if (!startAt) return null;
-  // Stored as a UTC ISO string with no offset (see SPEC.md); append "Z" so
-  // Date parses it as UTC rather than the browser's local time zone.
-  return new Date(`${startAt}Z`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default function DashboardHomePage() {
   const auth = useRequireAuth();
@@ -124,7 +115,7 @@ export default function DashboardHomePage() {
         )}
         {!isLoadingEvents &&
           events.map((event) => {
-            const startLabel = formatStartDate(event.start_at);
+            const startLabel = formatEventStartDate(event.start_at);
             return (
               <div
                 key={event.event_slug}

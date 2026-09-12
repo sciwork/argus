@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTaipeiDateTime } from "@/lib/datetime";
+import { formatEventStartDate, formatTaipeiDateTime } from "@/lib/datetime";
 
 describe("formatTaipeiDateTime", () => {
   it("converts a naive SQLite-shaped UTC timestamp to Taipei time (+8)", () => {
@@ -24,5 +24,18 @@ describe("formatTaipeiDateTime", () => {
     expect(formatTaipeiDateTime("2026-08-16T06:00:37+00:00")).toBe(
       "2026-08-16 14:00:37",
     );
+  });
+});
+
+describe("formatEventStartDate", () => {
+  it("returns null when there is no start_at", () => {
+    expect(formatEventStartDate(null)).toBeNull();
+  });
+
+  it("includes the year, not just month and day", () => {
+    // Regression test: two events on the same month/day but different
+    // years used to render identically ("Dec 1") in the events list.
+    expect(formatEventStartDate("2026-12-01T10:00:00")).toBe("Dec 1, 2026");
+    expect(formatEventStartDate("2027-12-01T10:00:00")).toBe("Dec 1, 2027");
   });
 });

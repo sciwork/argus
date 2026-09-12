@@ -27,3 +27,18 @@ export function formatTaipeiDateTime(utcTimestamp: string): string {
     .utcOffset(TAIPEI_UTC_OFFSET_HOURS)
     .format("YYYY-MM-DD HH:mm:ss");
 }
+
+/**
+ * Format an event's start_at (stored as a UTC ISO string with no offset —
+ * see SPEC.md) as a short date in the viewer's own locale/timezone, e.g.
+ * "Dec 1, 2026". Always includes the year — omitting it made events from
+ * different years indistinguishable in the event list.
+ */
+export function formatEventStartDate(startAt: string | null): string | null {
+  if (!startAt) return null;
+  return new Date(`${startAt}Z`).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
