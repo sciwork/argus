@@ -63,6 +63,13 @@ Configure one endpoint per channel. The channel name (case-insensitive) maps to 
 Example: sending to the `sprint` channel →
 URL: `https://your-domain/webhook/kktix/sprint`, env var: `DISCORD_WEBHOOK_SPRINT`
 
+> **Testing against a real KKTIX event:** if the event is tagged with the
+> "測試" (Test) category, KKTIX omits the JSON-LD (`application/ld+json`)
+> block from the event page — the same block `argus.kktix.scraper` parses
+> for `start_at`. Remove that category tag (leaving only real categories
+> like "線上活動") or `start_at` will silently stay `null` for that event,
+> even though the webhook and `capacity` scraping both work fine.
+
 ## Dashboard
 
 A Google-OAuth-protected web UI for viewing per-event registration time series.
