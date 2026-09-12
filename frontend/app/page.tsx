@@ -8,19 +8,16 @@ import { deleteEvent, listEvents, triggerReport } from "@/apis/events";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useRequireAuth } from "@/hooks/use-require-auth";
 import { formatEventStartDate } from "@/lib/datetime";
 import type { EventSummary } from "@/types/responses/events";
 
 export default function DashboardHomePage() {
-  const auth = useRequireAuth();
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [isLoadingEvents, startLoadingEvents] = useTransition();
   const [isTriggeringReport, startTriggeringReport] = useTransition();
   const [isDeleting, startDeleting] = useTransition();
 
   useEffect(() => {
-    if (auth.status !== "authenticated") return;
     let cancelled = false;
     startLoadingEvents(async () => {
       try {
@@ -36,21 +33,7 @@ export default function DashboardHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [auth.status]);
-
-  if (auth.status === "loading") {
-    return null;
-  }
-  if (auth.status === "error") {
-    return (
-      <p className="text-base text-destructive">
-        Failed to load: {auth.message}
-      </p>
-    );
-  }
-  if (auth.status !== "authenticated") {
-    return null;
-  }
+  }, []);
 
   const handleTriggerReport = () => {
     startTriggeringReport(async () => {
@@ -85,12 +68,7 @@ export default function DashboardHomePage() {
   return (
     <>
       <div className="flex flex-col items-start gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
-        <div>
-          <h1 className="font-heading text-3xl font-semibold">Events</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {auth.user.email}
-          </p>
-        </div>
+        <h1 className="font-heading text-3xl font-semibold">Events</h1>
         <Button
           type="button"
           variant="secondary"

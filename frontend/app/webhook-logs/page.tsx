@@ -18,7 +18,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useRequireAuth } from "@/hooks/use-require-auth";
 import { formatTaipeiDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 import type {
@@ -52,7 +51,6 @@ function summarizeBody(body: string | null): string {
 }
 
 export default function WebhookLogsPage() {
-  const auth = useRequireAuth();
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<WebhookLogsPage>(EMPTY_PAGE);
   const [isLoadingLogs, startLoadingLogs] = useTransition();
@@ -61,7 +59,6 @@ export default function WebhookLogsPage() {
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    if (auth.status !== "authenticated") return;
     let cancelled = false;
     startLoadingLogs(async () => {
       try {
@@ -77,17 +74,7 @@ export default function WebhookLogsPage() {
     return () => {
       cancelled = true;
     };
-  }, [auth.status, offset]);
-
-  if (auth.status === "loading") {
-    return null;
-  }
-  if (auth.status === "error") {
-    return <p className="text-destructive">Failed to load: {auth.message}</p>;
-  }
-  if (auth.status !== "authenticated") {
-    return null;
-  }
+  }, [offset]);
 
   const toggleOpen = (id: number) => {
     setOpenIds((prev) => {

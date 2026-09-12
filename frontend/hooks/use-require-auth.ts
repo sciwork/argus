@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/apis/auth";
 import { BACKEND_ORIGIN } from "@/configurations/backend";
 import type { CurrentUser } from "@/types/responses/auth";
 
-type AuthState =
+export type AuthState =
   | { status: "loading" }
   | { status: "authenticated"; user: CurrentUser }
   | { status: "unauthenticated" }

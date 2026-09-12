@@ -9,19 +9,17 @@ import { getEventTimeseries } from "@/apis/events";
 import { EmptyState } from "@/components/empty-state";
 import { EventChart } from "@/components/event-chart";
 import { Badge } from "@/components/ui/badge";
-import { useRequireAuth } from "@/hooks/use-require-auth";
 import { formatEventStartDate } from "@/lib/datetime";
 import type { EventTimeseries } from "@/types/responses/events";
 
 function EventDetailContent() {
-  const auth = useRequireAuth();
   const searchParams = useSearchParams();
   const slug = searchParams.get("slug");
   const [timeseries, setTimeseries] = useState<EventTimeseries | null>(null);
   const [isLoadingTimeseries, startLoadingTimeseries] = useTransition();
 
   useEffect(() => {
-    if (auth.status !== "authenticated" || !slug) return;
+    if (!slug) return;
     let cancelled = false;
     startLoadingTimeseries(async () => {
       try {
@@ -37,17 +35,7 @@ function EventDetailContent() {
     return () => {
       cancelled = true;
     };
-  }, [auth.status, slug]);
-
-  if (auth.status === "loading") {
-    return null;
-  }
-  if (auth.status === "error") {
-    return <p className="text-destructive">Failed to load: {auth.message}</p>;
-  }
-  if (auth.status !== "authenticated") {
-    return null;
-  }
+  }, [slug]);
 
   if (isLoadingTimeseries) {
     return <p>Loading…</p>;

@@ -1,8 +1,9 @@
 import { Geist, Geist_Mono, Inter, Playfair_Display } from "next/font/google";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
-import { BACKEND_ORIGIN } from "@/configurations/backend";
+import { Nav } from "@/components/nav";
+import { RequireAuth } from "@/components/require-auth";
+import { AuthProvider } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
@@ -44,24 +45,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       )}
     >
       <body className="flex min-h-full flex-col">
-        <nav className="flex items-center gap-6 border-b border-border px-6 py-4 text-sm">
-          <Link href="/" className="font-heading text-base font-semibold">
-            Argus
-          </Link>
-          <Link
-            href="/webhook-logs"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Webhook Logs
-          </Link>
-          <a
-            href={`${BACKEND_ORIGIN}/dashboard/logout`}
-            className="ml-auto text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Logout
-          </a>
-        </nav>
-        <main className="mx-auto w-full max-w-4xl flex-1 p-8">{children}</main>
+        <AuthProvider>
+          <Nav />
+          <main className="mx-auto w-full max-w-4xl flex-1 p-8">
+            <RequireAuth>{children}</RequireAuth>
+          </main>
+        </AuthProvider>
         <Toaster
           toastOptions={{
             className:
