@@ -11,6 +11,8 @@ import {
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
@@ -63,6 +65,7 @@ export function EventChart({ timeseries }: EventChartProps) {
         <XAxis dataKey="label" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} />
         <ChartTooltip content={<ChartTooltipContent />} />
+        <ChartLegend content={<ChartLegendContent />} />
         {timeseries.event.capacity !== null && (
           <ReferenceLine
             y={timeseries.event.capacity}
