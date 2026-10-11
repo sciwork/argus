@@ -14,3 +14,13 @@ dist/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Built frontend, copied into the backend package at build time
+src/argus/dashboard/frontend/
+
+# Superpowers scratch workspaces (SDD ledgers, brainstorm mockups) — local only
+.superpowers/
+
+# Superpowers specs/plans — useful during active design/implementation,
+# not worth keeping once the work they describe has landed
+docs/superpowers/

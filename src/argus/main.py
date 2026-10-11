@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 import logging
 import os
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 
 from argus import config
 from argus.dashboard.router import router as dashboard_router
@@ -61,6 +63,15 @@ app.add_middleware(
 app.include_router(kktix_router)
 app.include_router(dashboard_router)
 app.include_router(health_router)
+
+_FRONTEND_DIR = Path(__file__).parent / "dashboard" / "frontend"
+
+if _FRONTEND_DIR.is_dir():
+    app.mount(
+        "/dashboard",
+        StaticFiles(directory=_FRONTEND_DIR, html=True),
+        name="dashboard-frontend",
+    )
 
 
 @app.get("/", include_in_schema=False)

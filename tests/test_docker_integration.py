@@ -111,6 +111,55 @@ def test_docker_image_api_flow(api_url: str) -> None:
         assert client.get("/dashboard/api/events").json() == []
 
 
+def test_docker_image_serves_frontend_shell(api_url: str) -> None:
+    """The built static frontend is served at /dashboard, same-origin.
+
+    `/dashboard` (no trailing slash) 307-redirects to `/dashboard/` — that's
+    Starlette's standard `redirect_slashes` behavior for a mount whose static
+    export uses Next's `trailingSlash: true`, and any browser follows it
+    transparently, so the client here does too.
+    """
+    with httpx.Client(base_url=api_url, timeout=5, follow_redirects=True) as client:
+        response = client.get("/dashboard")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+def test_docker_image_serves_event_detail_page(api_url: str) -> None:
+    """The event-detail page (query-string based) is served at /dashboard/events.
+
+    Unlike `/dashboard` itself, `/dashboard/events` (no trailing slash)
+    307-redirects to `/dashboard/events/` via `StaticFiles`' own
+    directory-index redirect behavior — it resolves "events" to a directory
+    within the mount and redirects to add the trailing slash before serving
+    its `index.html`. This is a related but distinct mechanism from `Mount`'s
+    `redirect_slashes`, which only applies to the bare mount path itself. The
+    client here follows the redirect just as a browser would.
+    """
+    with httpx.Client(base_url=api_url, timeout=5, follow_redirects=True) as client:
+        response = client.get("/dashboard/events", params={"slug": "anything"})
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+def test_docker_image_serves_webhook_logs_page(api_url: str) -> None:
+    """The webhook-logs page is served at /dashboard/webhook-logs.
+
+    Unlike `/dashboard` itself, `/dashboard/webhook-logs` (no trailing slash)
+    307-redirects to `/dashboard/webhook-logs/` via `StaticFiles`' own
+    directory-index redirect behavior — it resolves "webhook-logs" to a
+    directory within the mount and redirects to add the trailing slash
+    before serving its `index.html`. This is a related but distinct
+    mechanism from `Mount`'s `redirect_slashes`, which only applies to the
+    bare mount path itself. The client here follows the redirect just as a
+    browser would.
+    """
+    with httpx.Client(base_url=api_url, timeout=5, follow_redirects=True) as client:
+        response = client.get("/dashboard/webhook-logs")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
 def _start_postgresql(container: str, network: str) -> None:
     _run(
         [

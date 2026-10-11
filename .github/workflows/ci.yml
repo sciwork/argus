@@ -37,3 +37,44 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      # Scoped to the "unit" vitest project only — the Storybook/Playwright
+      # browser-based component tests require installing a browser and are
+      # deliberately left as a local-only check for now.
+      - name: Test
+        working-directory: frontend
+        run: pnpm test:coverage
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v7
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build

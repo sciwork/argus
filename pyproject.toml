@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
-"argus.dashboard" = ["templates/*.html"]
+"argus.dashboard" = ["frontend/**/*"]
 "argus.kktix" = ["templates/*.j2"]
 
 [tool.setuptools.dynamic]
